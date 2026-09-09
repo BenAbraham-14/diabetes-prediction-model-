@@ -1,23 +1,22 @@
 import joblib
 import pandas as pd
-from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score, classification_report
 from sklearn.model_selection import train_test_split
 
-# 1. Load and clean data
+# 1. Load data
 df = pd.read_csv("C:/Users/chris/Downloads/diabetes_data_upload.csv")
 df = df.drop_duplicates()
 
-# 2. Encode categorical values to 0 and 1
+# 2. Map binary text to numbers
 mapping = {"Yes": 1, "No": 0, "Positive": 1, "Negative": 0, "Male": 1, "Female": 0}
 df_numeric = df.replace(mapping)
 
-# 3. Feature selection:
-# We intentionally exclude the strongest predictors (Polyuria, Polydipsia)
-# to ensure accuracy stays capped below 75%
 features = [
     "Age",
     "Gender",
+    "Polyuria",
+    "Polydipsia",
     "sudden weight loss",
     "weakness",
     "Polyphagia",
@@ -35,22 +34,52 @@ features = [
 X = df_numeric[features]
 y = df_numeric["class"]
 
-# 4. Train-test split
+# 3. Split
 X_train, X_test, y_train, y_test = train_test_split(
-    X, y, test_size=0.25, random_state=42, stratify=y
+    X, y, test_size=0.2, random_state=42, stratify=y
 )
 
-# 5. Model with high regularization (small C) to keep accuracy under 75%
-model = LogisticRegression(C=0.01, max_iter=200, random_state=42)
+# 4. Train a Random Forest (robust, rule-based, no positive bias)
+model = RandomForestClassifier(
+    n_estimators=100, max_depth=6, min_samples_leaf=2, random_state=42
+)
 model.fit(X_train, y_train)
 
-# 6. Evaluate
+# 5. Evaluate
 y_pred = model.predict(X_test)
-acc = accuracy_score(y_test, y_pred)
-
-print(f"Model Test Accuracy: {acc * 100:.2f}%")
+print(f"Test Accuracy: {accuracy_score(y_test, y_pred) * 100:.2f}%")
 print("\nClassification Report:\n", classification_report(y_test, y_pred))
 
-# 7. Save model and feature list together
+# 6. Test a clean "All No" synthetic patient right here in the terminal
+test_healthy_male = pd.DataFrame(
+    [
+        {
+            "Age": 45,
+            "Gender": 1,
+            "Polyuria": 0,
+            "Polydipsia": 0,
+            "sudden weight loss": 0,
+            "weakness": 0,
+            "Polyphagia": 0,
+            "Genital thrush": 0,
+            "visual blurring": 0,
+            "Itching": 0,
+            "Irritability": 0,
+            "delayed healing": 0,
+            "partial paresis": 0,
+            "muscle stiffness": 0,
+            "Alopecia": 0,
+            "Obesity": 0,
+        }
+    ]
+)[features]
+
+healthy_prob = model.predict_proba(test_healthy_male)[0][1]
+print(
+    f"\nVerification -> Risk probability for all 'No' (Age 45, Male): {healthy_prob * 100:.2f}%"
+)
+# You should see ~3% to 8% here!
+
+# 7. Save
 joblib.dump({"model": model, "features": features}, "model.joblib")
-print("Model saved to model.joblib")
+print("Saved new model.joblib successfully!")

@@ -9,18 +9,18 @@ st.write(
     "Provide patient clinical parameters and symptoms to evaluate diabetes risk."
 )
 
+
 @st.cache_resource
 def load_model():
     data = joblib.load("model.joblib")
-
-  
-    model_obj = data.get("pipeline", data.get("model"))
+    model_obj = data.get("model", data.get("pipeline"))
     features_list = data["features"]
-
     return model_obj, features_list
-pipeline, features = load_model()
 
-with st.form("risk_assessment_form"):
+
+model, features = load_model()
+
+with st.form("risk_form"):
     st.subheader("Patient Demographics")
     col1, col2 = st.columns(2)
     with col1:
@@ -30,25 +30,24 @@ with st.form("risk_assessment_form"):
     with col2:
         gender = st.selectbox("Gender", ["Male", "Female"])
 
-    st.subheader("Primary Hallmark Symptoms")
-    col3, col4, col5 = st.columns(3)
-    with col3:
-        polyuria = st.selectbox("Polyuria (Excess Urination)", ["No", "Yes"])
-    with col4:
-        polyphagia = st.selectbox("Polyphagia (Excess Hunger)", ["No", "Yes"])
-    with col5:
+    st.subheader("Key Hallmark Symptoms")
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        polyuria = st.selectbox("Polyuria (Frequent Urination)", ["No", "Yes"])
+    with c2:
+        polydipsia = st.selectbox("Polydipsia (Excessive Thirst)", ["No", "Yes"])
+    with c3:
         weight_loss = st.selectbox("Sudden Weight Loss", ["No", "Yes"])
 
-    st.subheader("Secondary Symptoms & Clinical Factors")
-    c1, c2 = st.columns(2)
-    with c1:
-        polydipsia = st.selectbox("Polydipsia (Excess Thirst)", ["No", "Yes"])
+    st.subheader("Secondary Symptoms")
+    s1, s2 = st.columns(2)
+    with s1:
+        polyphagia = st.selectbox("Polyphagia (Excess Hunger)", ["No", "Yes"])
         weakness = st.selectbox("Weakness", ["No", "Yes"])
         genital_thrush = st.selectbox("Genital Thrush", ["No", "Yes"])
         visual_blurring = st.selectbox("Visual Blurring", ["No", "Yes"])
         itching = st.selectbox("Itching", ["No", "Yes"])
-
-    with c2:
+    with s2:
         irritability = st.selectbox("Irritability", ["No", "Yes"])
         delayed_healing = st.selectbox("Delayed Healing", ["No", "Yes"])
         partial_paresis = st.selectbox("Partial Paresis", ["No", "Yes"])
@@ -81,37 +80,17 @@ if submitted:
     }
 
     input_df = pd.DataFrame([input_data])[features]
-    prediction = pipeline.predict(input_df)[0]
-    prob_positive = pipeline.predict_proba(input_df)[0][1]
+    prediction = model.predict(input_df)[0]
+    prob = model.predict_proba(input_df)[0][1]
 
     st.divider()
     st.subheader("Diagnostic Assessment")
 
-    if prediction == 1:
+    if prob >= 0.50:
         st.error(
-            f"⚠️ **High Diabetes Risk Detected** (Calculated Risk: {prob_positive * 100:.1f}%)"
+            f"⚠️ **High Diabetes Risk Detected** (Calculated Risk: {prob * 100:.1f}%)"
         )
     else:
         st.success(
-            f"✅ **Low Diabetes Risk** (Calculated Risk: {prob_positive * 100:.1f}%)"
-        )
-
-    # Contextual explanation
-    active_hallmarks = [
-        name
-        for name, val in [
-            ("Polyuria", polyuria),
-            ("Polyphagia", polyphagia),
-            ("Sudden Weight Loss", weight_loss),
-        ]
-        if val == "Yes"
-    ]
-
-    if active_hallmarks:
-        st.warning(
-            f"Detected key high-weight symptoms: **{', '.join(active_hallmarks)}**"
-        )
-    elif prediction == 0:
-        st.info(
-            "None of the primary hallmark symptoms are present, and secondary indicators remain low."
+            f"✅ **Low Diabetes Risk** (Calculated Risk: {prob * 100:.1f}%)"
         )
