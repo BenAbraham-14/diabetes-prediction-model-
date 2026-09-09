@@ -240,4 +240,4 @@ with col_preview:
     else:
         st.info(
             "👈 Enter patient metrics and click **Run Risk Assessment** to display findings."
-        )  )
+        )  
