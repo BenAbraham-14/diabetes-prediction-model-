@@ -2,80 +2,114 @@ import joblib
 import pandas as pd
 import streamlit as st
 
-# Set page config
 st.set_page_config(page_title="Diabetes Risk Predictor", layout="centered")
 
 st.title("🩺 Early-Stage Diabetes Risk Predictor")
-st.write("Fill out the symptoms below to check the risk assessment.")
+st.write(
+    "Provide patient clinical parameters and symptoms to evaluate diabetes risk."
+)
 
 
-# Load trained pipeline
 @st.cache_resource
 def load_model():
-    artifact = joblib.load("model.joblib")
-    return artifact["model"], artifact["features"]
+    data = joblib.load("model.joblib")
+    return data["pipeline"], data["features"]
 
 
-model, features = load_model()
+pipeline, features = load_model()
 
-# Form layout
-with st.form("prediction_form"):
+with st.form("risk_assessment_form"):
+    st.subheader("Patient Demographics")
     col1, col2 = st.columns(2)
-
     with col1:
         age = st.number_input(
-            "Age", min_value=1, max_value=120, value=45, step=1
+            "Age", min_value=1, max_value=120, value=40, step=1
         )
-        gender = st.selectbox("Gender", ["Male", "Female"])
-        weight_loss = st.selectbox("Sudden Weight Loss", ["No", "Yes"])
-        weakness = st.selectbox("Weakness", ["No", "Yes"])
-        polyphagia = st.selectbox("Polyphagia (Excessive Hunger)", ["No", "Yes"])
-        thrush = st.selectbox("Genital Thrush", ["No", "Yes"])
-        visual_blurring = st.selectbox("Visual Blurring", ["No", "Yes"])
-
     with col2:
+        gender = st.selectbox("Gender", ["Male", "Female"])
+
+    st.subheader("Primary Hallmark Symptoms")
+    col3, col4, col5 = st.columns(3)
+    with col3:
+        polyuria = st.selectbox("Polyuria (Excess Urination)", ["No", "Yes"])
+    with col4:
+        polyphagia = st.selectbox("Polyphagia (Excess Hunger)", ["No", "Yes"])
+    with col5:
+        weight_loss = st.selectbox("Sudden Weight Loss", ["No", "Yes"])
+
+    st.subheader("Secondary Symptoms & Clinical Factors")
+    c1, c2 = st.columns(2)
+    with c1:
+        polydipsia = st.selectbox("Polydipsia (Excess Thirst)", ["No", "Yes"])
+        weakness = st.selectbox("Weakness", ["No", "Yes"])
+        genital_thrush = st.selectbox("Genital Thrush", ["No", "Yes"])
+        visual_blurring = st.selectbox("Visual Blurring", ["No", "Yes"])
         itching = st.selectbox("Itching", ["No", "Yes"])
+
+    with c2:
         irritability = st.selectbox("Irritability", ["No", "Yes"])
         delayed_healing = st.selectbox("Delayed Healing", ["No", "Yes"])
-        paresis = st.selectbox("Partial Paresis", ["No", "Yes"])
+        partial_paresis = st.selectbox("Partial Paresis", ["No", "Yes"])
         muscle_stiffness = st.selectbox("Muscle Stiffness", ["No", "Yes"])
         alopecia = st.selectbox("Alopecia (Hair Loss)", ["No", "Yes"])
         obesity = st.selectbox("Obesity", ["No", "Yes"])
 
-    submitted = st.form_submit_button("Predict Risk")
+    submitted = st.form_submit_button("Evaluate Risk")
 
 if submitted:
-    # Mapping
     binary_map = {"Yes": 1, "No": 0, "Male": 1, "Female": 0}
 
     input_data = {
         "Age": age,
         "Gender": binary_map[gender],
+        "Polyuria": binary_map[polyuria],
+        "Polydipsia": binary_map[polydipsia],
         "sudden weight loss": binary_map[weight_loss],
         "weakness": binary_map[weakness],
         "Polyphagia": binary_map[polyphagia],
-        "Genital thrush": binary_map[thrush],
+        "Genital thrush": binary_map[genital_thrush],
         "visual blurring": binary_map[visual_blurring],
         "Itching": binary_map[itching],
         "Irritability": binary_map[irritability],
         "delayed healing": binary_map[delayed_healing],
-        "partial paresis": binary_map[paresis],
+        "partial paresis": binary_map[partial_paresis],
         "muscle stiffness": binary_map[muscle_stiffness],
         "Alopecia": binary_map[alopecia],
         "Obesity": binary_map[obesity],
     }
 
     input_df = pd.DataFrame([input_data])[features]
+    prediction = pipeline.predict(input_df)[0]
+    prob_positive = pipeline.predict_proba(input_df)[0][1]
 
-    prediction = model.predict(input_df)[0]
-    prob = model.predict_proba(input_df)[0][1]
+    st.divider()
+    st.subheader("Diagnostic Assessment")
 
-    st.subheader("Result:")
     if prediction == 1:
         st.error(
-            f"⚠️ **High Risk of Diabetes** (Estimated Probability: {prob * 100:.1f}%)"
+            f"⚠️ **High Diabetes Risk Detected** (Calculated Risk: {prob_positive * 100:.1f}%)"
         )
     else:
         st.success(
-            f"✅ **Low Risk of Diabetes** (Estimated Probability: {prob * 100:.1f}%)"
+            f"✅ **Low Diabetes Risk** (Calculated Risk: {prob_positive * 100:.1f}%)"
+        )
+
+    # Contextual explanation
+    active_hallmarks = [
+        name
+        for name, val in [
+            ("Polyuria", polyuria),
+            ("Polyphagia", polyphagia),
+            ("Sudden Weight Loss", weight_loss),
+        ]
+        if val == "Yes"
+    ]
+
+    if active_hallmarks:
+        st.warning(
+            f"Detected key high-weight symptoms: **{', '.join(active_hallmarks)}**"
+        )
+    elif prediction == 0:
+        st.info(
+            "None of the primary hallmark symptoms are present, and secondary indicators remain low."
         )
