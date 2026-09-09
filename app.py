@@ -9,13 +9,15 @@ st.write(
     "Provide patient clinical parameters and symptoms to evaluate diabetes risk."
 )
 
-
 @st.cache_resource
 def load_model():
     data = joblib.load("model.joblib")
-    return data["pipeline"], data["features"]
 
+  
+    model_obj = data.get("pipeline", data.get("model"))
+    features_list = data["features"]
 
+    return model_obj, features_list
 pipeline, features = load_model()
 
 with st.form("risk_assessment_form"):
