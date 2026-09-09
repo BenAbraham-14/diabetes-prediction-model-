@@ -1,70 +1,81 @@
 import joblib
-import numpy as np
 import pandas as pd
-from flask import Flask, jsonify, request
+import streamlit as st
 
-app = Flask(__name__)
+# Set page config
+st.set_page_config(page_title="Diabetes Risk Predictor", layout="centered")
 
-# Load trained pipeline components
-saved_artifact = joblib.load("model.joblib")
-model = saved_artifact["model"]
-features = saved_artifact["features"]
-
-# Value mapping dictionary for conversion
-MAPPER = {"yes": 1, "no": 0, "male": 1, "female": 0}
+st.title("🩺 Early-Stage Diabetes Risk Predictor")
+st.write("Fill out the symptoms below to check the risk assessment.")
 
 
-@app.route("/", methods=["GET"])
-def home():
-    return jsonify(
-        {
-            "message": "Early-stage diabetes prediction API is running.",
-            "required_features": features,
-        }
-    )
+# Load trained pipeline
+@st.cache_resource
+def load_model():
+    artifact = joblib.load("model.joblib")
+    return artifact["model"], artifact["features"]
 
 
-@app.route("/predict", methods=["POST"])
-def predict():
-    try:
-        data = request.get_json()
-        if not data:
-            return jsonify({"error": "No JSON payload provided."}), 400
+model, features = load_model()
 
-        # Build feature vector
-        processed_data = {}
-        for feat in features:
-            if feat not in data:
-                return jsonify({"error": f"Missing feature: {feat}"}), 400
+# Form layout
+with st.form("prediction_form"):
+    col1, col2 = st.columns(2)
 
-            val = data[feat]
-            # Convert strings like 'Yes'/'No'/'Male'/'Female' or accept direct 0/1
-            if isinstance(val, str):
-                val_clean = val.strip().lower()
-                if val_clean in MAPPER:
-                    processed_data[feat] = MAPPER[val_clean]
-                else:
-                    return jsonify(
-                        {"error": f"Invalid string value '{val}' for {feat}"}
-                    ), 400
-            else:
-                processed_data[feat] = float(val)
-
-        # Predict
-        input_df = pd.DataFrame([processed_data])[features]
-        pred = model.predict(input_df)[0]
-        prob = model.predict_proba(input_df)[0][1]
-
-        return jsonify(
-            {
-                "prediction": "Positive" if pred == 1 else "Negative",
-                "risk_probability": round(float(prob), 4),
-            }
+    with col1:
+        age = st.number_input(
+            "Age", min_value=1, max_value=120, value=45, step=1
         )
+        gender = st.selectbox("Gender", ["Male", "Female"])
+        weight_loss = st.selectbox("Sudden Weight Loss", ["No", "Yes"])
+        weakness = st.selectbox("Weakness", ["No", "Yes"])
+        polyphagia = st.selectbox("Polyphagia (Excessive Hunger)", ["No", "Yes"])
+        thrush = st.selectbox("Genital Thrush", ["No", "Yes"])
+        visual_blurring = st.selectbox("Visual Blurring", ["No", "Yes"])
 
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    with col2:
+        itching = st.selectbox("Itching", ["No", "Yes"])
+        irritability = st.selectbox("Irritability", ["No", "Yes"])
+        delayed_healing = st.selectbox("Delayed Healing", ["No", "Yes"])
+        paresis = st.selectbox("Partial Paresis", ["No", "Yes"])
+        muscle_stiffness = st.selectbox("Muscle Stiffness", ["No", "Yes"])
+        alopecia = st.selectbox("Alopecia (Hair Loss)", ["No", "Yes"])
+        obesity = st.selectbox("Obesity", ["No", "Yes"])
 
+    submitted = st.form_submit_button("Predict Risk")
 
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
+if submitted:
+    # Mapping
+    binary_map = {"Yes": 1, "No": 0, "Male": 1, "Female": 0}
+
+    input_data = {
+        "Age": age,
+        "Gender": binary_map[gender],
+        "sudden weight loss": binary_map[weight_loss],
+        "weakness": binary_map[weakness],
+        "Polyphagia": binary_map[polyphagia],
+        "Genital thrush": binary_map[thrush],
+        "visual blurring": binary_map[visual_blurring],
+        "Itching": binary_map[itching],
+        "Irritability": binary_map[irritability],
+        "delayed healing": binary_map[delayed_healing],
+        "partial paresis": binary_map[paresis],
+        "muscle stiffness": binary_map[muscle_stiffness],
+        "Alopecia": binary_map[alopecia],
+        "Obesity": binary_map[obesity],
+    }
+
+    input_df = pd.DataFrame([input_data])[features]
+
+    prediction = model.predict(input_df)[0]
+    prob = model.predict_proba(input_df)[0][1]
+
+    st.subheader("Result:")
+    if prediction == 1:
+        st.error(
+            f"⚠️ **High Risk of Diabetes** (Estimated Probability: {prob * 100:.1f}%)"
+        )
+    else:
+        st.success(
+            f"✅ **Low Risk of Diabetes** (Estimated Probability: {prob * 100:.1f}%)"
+        )
